@@ -1,0 +1,213 @@
+## RocketMQ 消息发送
+
+普通消息发送类型: 可靠同步发送,可靠异步发送,单向发送
+
+- 同步: 发送者发送消息时同步等待,直到服务器返回
+- 异步:发送者发送消息时,指定回调函数,然后调用发送API,立即返回,消息回调在新线程中执行
+- 单向:消息发送者只管发,发送后直接返回
+
+### 消息数据格式
+
+在RocketMQ中的消息载体是 org.apache.rocketmq.common.message.Message 
+
+主要属性如下:
+```
+// 消息主题
+private String topic;
+//消息flag(RocketMQ不做处理)
+private int flag;
+//扩展属性 主要包含 TAGS:消息过滤 KEYS message索引键,多个用空格隔开,用于快速检索消息
+//WAIT:是否等持久化后再返回 DELAY:消息延迟级别 
+private Map<String, String> properties;
+//消息体
+private byte[] body;
+//事务id
+private String transactionId;
+```
+
+支持的MessageFlag :
+
+```
+public class MessageSysFlag {
+    public final static int COMPRESSED_FLAG = 0x1;
+    public final static int MULTI_TAGS_FLAG = 0x1 << 1;
+    public final static int TRANSACTION_NOT_TYPE = 0;
+    public final static int TRANSACTION_PREPARED_TYPE = 0x1 << 2;
+    public final static int TRANSACTION_COMMIT_TYPE = 0x2 << 2;
+    public final static int TRANSACTION_ROLLBACK_TYPE = 0x3 << 2;
+    public final static int BORNHOST_V6_FLAG = 0x1 << 4;
+    public final static int STOREHOSTADDRESS_V6_FLAG = 0x1 << 5;
+```
+
+
+
+### 消息生产者启动流程
+
+默认使用`DefaultMQProducer`发送消息,启动流程可以查看`DefaultMQProducerImpl`的`start()`方法.
+
+```java
+step1.校验生产者producerGrop,并修改生产者的instanceName为Pid
+    
+this.checkConfig();
+
+if(!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
+     this.defaultMQProducer.changeInstanceNameToPID();
+}
+
+```
+
+```
+step2.获取或创建 mQClientFactory实例,整个JVM中只有一个MQClientManager实例,其中维护了一个mQClientFactory缓存表,每个client对应一个mQClientFactory
+this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
+```
+
+```
+step3.向mQClientFactory中注册生产者,如果重复注册则报MQClientException异常
+boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
+if (!registerOK) {
+    this.serviceState = ServiceState.CREATE_JUST;
+    throw new MQClientException("The producer group[" + this.defaultMQProducer.getProducerGroup()
+        + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),
+        null);
+}
+```
+
+```
+ step3中注册代码
+public boolean registerProducer(final String group, final DefaultMQProducerImpl producer) {
+    if (null == group || null == producer) {
+        return false;
+    }
+
+    MQProducerInner prev = this.producerTable.putIfAbsent(group, producer);
+    if (prev != null) {
+        log.warn("the producer group[{}] exist already.", group);
+        return false;
+    }
+
+    return true;
+}
+```
+
+```
+step4.启动MQClientInstance,如果非初次创建则,本次不启动
+this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
+
+if (startFactory) {
+    mQClientFactory.start();
+}
+
+log.info("the producer [{}] start OK. sendMessageWithVIPChannel={}", this.defaultMQProducer.getProducerGroup(),
+    this.defaultMQProducer.isSendMessageWithVIPChannel());
+this.serviceState = ServiceState.RUNNING;
+```
+### 生产者消息发送流程
+
+消息主要步骤:验证消息,查找路由,发送消息(包含异常处理).默认是同步发送.
+
+```
+从该方法入手,研究RocketMQ的消息发送机制
+public SendResult send(Message msg,
+    long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+    return this.sendDefaultImpl(msg, CommunicationMode.SYNC, null, timeout);
+}
+```
+
+```
+消息发送前先校验生产者状态,消息格式,查找路由
+this.makeSureStateOK();
+Validators.checkMessage(msg, this.defaultMQProducer);
+final long invokeID = random.nextLong();
+long beginTimestampFirst = System.currentTimeMillis();
+long beginTimestampPrev = beginTimestampFirst;
+long endTimestamp = beginTimestampFirst;
+TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
+```
+
+```
+
+查找路由: 先从缓存中获取,如果缓存中没有则向nameServer查询
+private TopicPublishInfo tryToFindTopicPublishInfo(final String topic) {
+    TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
+    if (null == topicPublishInfo || !topicPublishInfo.ok()) {
+        this.topicPublishInfoTable.putIfAbsent(topic, new TopicPublishInfo());
+        this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
+        topicPublishInfo = this.topicPublishInfoTable.get(topic);
+    }
+
+    if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
+        return topicPublishInfo;
+    } else {
+        this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
+        topicPublishInfo = this.topicPublishInfoTable.get(topic);
+        return topicPublishInfo;
+    }
+}
+```
+
+```
+选择消息队列:返回的消息队列按照broker,序号排序
+public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
+	//sendLatencyFaultEnable 是否启用broker故障延迟机制
+    if (this.sendLatencyFaultEnable) {
+        try {
+            int index = tpInfo.getSendWhichQueue().getAndIncrement();
+            for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
+                int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
+                if (pos < 0)
+                    pos = 0;
+                MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+                if (latencyFaultTolerance.isAvailable(mq.getBrokerName()))
+                    return mq;
+            }
+
+            final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
+            int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
+            if (writeQueueNums > 0) {
+                final MessageQueue mq = tpInfo.selectOneMessageQueue();
+                if (notBestBroker != null) {
+                    mq.setBrokerName(notBestBroker);
+                    mq.setQueueId(tpInfo.getSendWhichQueue().getAndIncrement() % writeQueueNums);
+                }
+                return mq;
+            } else {
+                latencyFaultTolerance.remove(notBestBroker);
+            }
+        } catch (Exception e) {
+            log.error("Error occurred when selecting message queue", e);
+        }
+
+        return tpInfo.selectOneMessageQueue();
+    }
+```
+
+```
+TopicPublishInfo中实现
+public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
+    if (lastBrokerName == null) {
+        return selectOneMessageQueue();
+    } else {
+        for (int i = 0; i < this.messageQueueList.size(); i++) {
+            int index = this.sendWhichQueue.getAndIncrement();
+            int pos = Math.abs(index) % this.messageQueueList.size();
+            if (pos < 0)
+                pos = 0;
+            MessageQueue mq = this.messageQueueList.get(pos);
+            if (!mq.getBrokerName().equals(lastBrokerName)) {
+                return mq;
+            }
+        }
+        return selectOneMessageQueue();
+    }
+}
+```
+
+```
+消息发送:
+private SendResult sendKernelImpl(final Message msg,
+    final MessageQueue mq,
+    final CommunicationMode communicationMode,
+    final SendCallback sendCallback,
+    final TopicPublishInfo topicPublishInfo,
+    final long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException 
+```
