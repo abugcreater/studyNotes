@@ -165,6 +165,12 @@ public static void initServletPropertySources(MutablePropertySources sources,
 }
 ```
 
+扫描bean实例:`AbstractApplicationContext#obtainFreshBeanFactory`->`AbstractRefreshableApplicationContext#refreshBeanFactory`->`AnnotationConfigWebApplicationContext#loadBeanDefinitions`->`ClassPathBeanDefinitionScanner#scan`->`ClassPathBeanDefinitionScanner#doScan`->`ClassPathScanningCandidateComponentProvider#findCandidateComponents`->`ClassPathScanningCandidateComponentProvider#scanCandidateComponents`-> 1:getResourcePatternResolver().getResources(packageSearchPath) 加载基础包下所有类; 2 :getMetadataReaderFactory().getMetadataReader(resource) 获取类属性
+
+
+
+
+
 ```java
 //准备BeanFactory,设置classLoader及后处理器等
 protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
