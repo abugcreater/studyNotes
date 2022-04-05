@@ -928,10 +928,3 @@ RocketMQ 选择了 mmap + write 这种零拷贝方式，适用于业务级消息
 
 本文开篇详述了 Linux 操作系统中的物理内存和虚拟内存，内核空间和用户空间的概念以及 Linux 内部的层级结构。在此基础上，进一步分析和对比传统 I/O 方式和零拷贝方式的区别，然后介绍了 Linux 内核提供的几种零拷贝实现，包括内存映射 mmap、sendfile、sendfile + DMA gather copy 以及 splice 几种机制，并从系统调用和拷贝次数层面对它们进行了对比。接下来从源码着手分析了 Java NIO 对零拷贝的实现，主要包括基于内存映射（mmap）方式的 MappedByteBuffer 以及基于 sendfile 方式的 FileChannel。最后在篇末简单的阐述了一下 Netty 中的零拷贝机制，以及 RocketMQ 和 Kafka 两种消息队列在零拷贝实现方式上的区别。
 
-- 
-
-
-
-
-
->
