@@ -49,7 +49,7 @@ protected final void initServletBean() throws ServletException {
 }
 ```
 
-`FrameworkServlet#initFrameworkServlet`
+`FrameworkServlet#initWebApplicationContext`
 
 ```java
 //创建此 servlet 的 WebApplicationContext
@@ -330,15 +330,19 @@ protected void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactor
 
 ```java
 protected void initStrategies(ApplicationContext context) {
-   //初始化一系列类 
+   //初始化一系列类 `
+    //文件上传支持
    initMultipartResolver(context);
    initLocaleResolver(context);
    initThemeResolver(context);
    initHandlerMappings(context);
    initHandlerAdapters(context);
    initHandlerExceptionResolvers(context);
+    //此接口用以完成从HttpServletRequest到视图名的解析,404时使用
    initRequestToViewNameTranslator(context);
+    //按名称解析视图的对象实现的接口
    initViewResolvers(context);
+    //会向容器注册SessionFlashMapManager对象.用于检索和保存 FlashMap 实例的策略接口
    initFlashMapManager(context);
 }
 ```
