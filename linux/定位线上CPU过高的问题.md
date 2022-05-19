@@ -34,22 +34,22 @@ load average数据每隔5s检测活跃进程数,然后按特定算法计算数�
 
 **第三行**显示,CPU状态信息
 
-us(user space):用户空间CPU的使用占比;
+- us(user space):用户空间CPU的使用占比;
 
-sy(sysctl):内核空间CPU的使用占比;
+- sy(sysctl):内核空间CPU的使用占比;
 
-ni:改变过优先级的进程使用占比
+- ni:改变过优先级的进程使用占比
 
-id(idolt):空闲CPU占比
+- id(idolt):空闲CPU占比
 
-wa(wait):IO等待占用CPU的百分比
+- wa(wait):IO等待占用CPU的百分比
 
-hi(Hardware IRQ):硬终端的CPU占比;
+- hi(Hardware IRQ):硬终端的CPU占比;
 
-​	硬中断:指CPU应为硬件原因导致的中断,比如网卡收到数据包通过中断控制器发出
-si(software interrupts):软终端占用CPU的百分比
+-  硬中断:指CPU应为硬件原因导致的中断,比如网卡收到数据包通过中断控制器发出
+  si(software interrupts):软终端占用CPU的百分比
 
-​	软中断:有进程发出中断指令,不可屏蔽,处理硬中断未完成的工作
+-  软中断:有进程发出中断指令,不可屏蔽,处理硬中断未完成的工作
 
 
 
@@ -117,14 +117,16 @@ b． 针对core文件做线程dump。
 
 示例
 
-```
+```shell
 Full thread dump Java HotSpot(TM) 64-Bit Server VM (25.211-b12 mixed mode):
 
-"Keep-Alive-Timer" #478 daemon prio=8 os_prio=0 tid=0x00007f332004e000 nid=0x12f1 sleeping[0x00007f328cf5b000]
-   java.lang.Thread.State: TIMED_WAITING (sleeping)
-	at java.lang.Thread.sleep(Native Method)
-	at sun.net.www.http.KeepAliveCache.run(KeepAliveCache.java:172)
-	at java.lang.Thread.run(Thread.java:748)
+1. "Keep-Alive-Timer" #478 daemon prio=8 os_prio=0 tid=0x00007f332004e000 nid=0x12f1 sleeping[0x00007f328cf5b000]
+
+
+ 2.  java.lang.Thread.State: TIMED_WAITING (sleeping)
+ 3.	at java.lang.Thread.sleep(Native Method)
+ 4.	at sun.net.www.http.KeepAliveCache.run(KeepAliveCache.java:172)
+ 5.	at java.lang.Thread.run(Thread.java:748)
 
    Locked ownable synchronizers:
 	- None
@@ -132,6 +134,8 @@ Full thread dump Java HotSpot(TM) 64-Bit Server VM (25.211-b12 mixed mode):
 "OkHttp ConnectionPool" #474 daemon prio=10 os_prio=0 tid=0x00007f32f4206000 nid=0x1090 in Object.wait() [0x00007f328c654000]
    .....
 ```
+
+前两个分别为 线程名称和线程类型
 
 prio:Java内定义的线程优先级
 
@@ -145,6 +149,76 @@ nid:操作系统级别的线程id.注:如果与top中的线程id比较时需要�
 jstack [进程]|grep -A 10 [线程的16进制] 
 针对某个线程进行打印分析
 ```
+
+>  线程的执行是逆向的,所以先执行5在执行4以此类推.
+
+**在堆栈第一行标明了线程在代码级的状态**
+
+```
+ java.lang.Thread.State: TIMED_WAITING (sleeping)
+```
+
+解释如下
+
+
+
+```
+
+|blocked| 阻塞状态
+
+> This thread tried to enter asynchronized block, but the lock was taken by another thread. This thread isblocked until the lock gets released.
+该线程试图进入异步块，但锁已被另一个线程占用。该线程被阻塞，直到锁被释放
+|blocked (on thin lock)|  薄锁阻塞状态,CAS 等同于薄锁
+
+> This is the same state asblocked, but the lock in question is a thin lock.
+这与阻塞状态相同，但所讨论的锁是薄锁。
+
+|waiting| 等待状态
+
+> This thread calledObject.wait() on an object. The thread will remain there until some otherthread sends a notification to that object.
+这个线程在一个对象上调用了Object.wait()。该线程将保留在那里，直到某个其他线程向该对象发送通知
+
+|sleeping| 睡眠状态
+
+> This thread calledjava.lang.Thread.sleep().
+线程调用了Thread.sleep
+
+|parked| 线程park
+
+> This thread calledjava.util.concurrent.locks.LockSupport.park().
+线程调用了LockSupport.park
+|suspended| 暂停状态
+
+> The thread's execution wassuspended by java.lang.Thread.suspend() or a JVMTI agent call.
+线程被暂停Thread.suspend,或者JVMTI agent回调
+
+```
+
+![image](https://pdai.tech/_images/jvm/java-jvm-debug-1.png)
+
+如上图，每个Monitor在某个时刻，只能被一个线程拥有，**该线程就是 “ActiveThread”，而其它线程都是 “Waiting Thread”，分别在两个队列“Entry Set”和“Wait Set”里等候**。在“Entry Set”中等待的线程状态是“Waiting for monitor entry”，而在“Wait Set”中等待的线程状态是“in Object.wait()”。
+
+即将获取monitor的线程状态修改为runnable,否则就是waiting for monitor entry”
+
+
+
+### 问题场景
+
+- **CPU飙高，load高，响应很慢**
+  1. 一个请求过程中多次dump；
+  2. 对比多次dump文件的runnable线程，如果执行的方法有比较大变化，说明比较正常。如果在执行同一个方法，就有一些问题了；
+- **查找占用CPU最多的线程**
+  1. 使用命令：top -H -p pid（pid为被测系统的进程号），找到导致CPU高的线程ID，对应thread dump信息中线程的nid，只不过一个是十进制，一个是十六进制；
+  2. 在thread dump中，根据top命令查找的线程id，查找对应的线程堆栈信息；
+- **CPU使用率不高但是响应很慢**
+
+进行dump，查看是否有很多thread struck在了i/o、数据库等地方，定位瓶颈原因；
+
+- **请求无法响应**
+
+多次dump，对比是否所有的runnable线程都一直在执行相同的方法，如果是的，恭喜你，锁住了！
+
+
 
 #### 入手点总结
 
@@ -171,3 +245,7 @@ in Object.wait()： 注意非线程池等待
 [Linux top命令详解](https://www.cnblogs.com/niuben/p/12017242.html)
 
 [java命令--jstack 工具 ](https://www.cnblogs.com/kongzhongqijing/articles/3630264.html)
+
+[JVM的Thin Lock, Fat Lock, SPIN Lock与Tasuki Lock](https://www.iteye.com/blog/xiajs-1013908)
+
+[Java 线程分析之线程Dump分析](https://pdai.tech/md/java/jvm/java-jvm-thread-dump.html)

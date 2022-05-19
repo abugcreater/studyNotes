@@ -231,6 +231,73 @@ public Object getEarlyBeanReference(Object bean, String beanName) {
 
 
 
+## 其他循环依赖
+
+关于循环依赖不止上述的单例中注入的循环依赖,还有构造器中的循环依赖和,原型中的循环依赖,而目前为止三级缓存只能解决单例注入的循环依赖.
+
+### 构造器循环依赖
+
+关于构造器循环依赖,是无法被解决的.无论是通过`@Lazy`注解或者是三级缓存.
+
+原因:创建bean流程
+
+![image-20220515163113683](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20220515163113683.png)
+
+所以当发生构造器循环依赖时无法依靠三级缓存实现,而且因为是需要实例化当前bean,`@Lazy`注解也不会生效.
+
+### 原型注入循环依赖
+
+原型注入循环依赖无法解决.
+
+示例
+
+```java
+@Component
+@Scope("prototype")
+public class BeanCreateDepend {
+ 	@Autowired
+    private BeanCreateDemo beanCreateDemo;
+}
+```
+
+```java
+@Component
+@Scope("prototype")
+public class BeanCreateDemo {
+
+    @Autowired
+    private BeanCreateDepend beanCreateDepend;
+
+}
+```
+
+当发生该种循环依赖时,.spring会抛出`UnsatisfiedDependencyException`异常.
+
+原因:
+
+在获取原型bean时
+
+```java
+Object prototypeInstance = null;
+try {
+    //只会在当前创建的原型bean缓存中添加beanName,没有将bean放入到三级缓存中,所以会一直循环,当spring判断有循环依赖存在时会报错
+   beforePrototypeCreation(beanName);
+   prototypeInstance = createBean(beanName, mbd, args);
+}
+finally {
+   afterPrototypeCreation(beanName);
+}
+
+
+protected void beforePrototypeCreation(String beanName) {
+		Object curVal = this.prototypesCurrentlyInCreation.get();
+		if (curVal == null) {
+			this.prototypesCurrentlyInCreation.set(beanName);
+		}
+    	......
+	}
+```
+
 
 
 

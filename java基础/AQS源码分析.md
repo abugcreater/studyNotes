@@ -18,7 +18,7 @@ CLH(Craig,Landin,and Hagersten)队列是一个虚拟的双向队列(虚拟的双
 
 ## 源码解读
 
-<img src="C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20220216214757602.png" alt="image-20220216214757602" style="zoom:50%;" />
+<img src="C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20220216214757602.png" alt="image-20220216214757602" style="zoom:70%;" />
 
 `AbstractQueuedSynchronizer`类结构如上所示.他包含了Node类与ConditionObject类,实现了AbstractOwnableSynchronizer接口和序列化接口.
 
