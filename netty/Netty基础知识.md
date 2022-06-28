@@ -291,10 +291,3 @@ public ChannelFuture write(final Object msg, final ChannelPromise promise) {
 
 [3万字加50张图，带你深度解析 Netty 架构与原理（下）](https://juejin.cn/post/6919486634710794254#heading-0)
 
-//相关组件
-
-//粘包,拆包
-
-//websocket
-
-//相关网络知识
