@@ -1,5 +1,59 @@
 # Seata AT 模式执行源码解析
 
+## Seata AT的工作流程
+
+### 工作流程总览
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQjcrbDZMg2J2kCSIjcBcw8pcWdibq5iaMicj0AALib1yibt72ZIxr94abS3gA/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+AT模式的工作流程分为**两阶段**.以极端进行业务SQL执行,并通过SQL拦截,SQL改写等过程生成修改数据前后的快照,并作为UndoLog和业务修改在**同一个本地事务汇中提交**.
+
+如果一阶段成功那么二阶段仅仅异步删除刚刚插入的UndoLog;如果二阶段失败则通过UndoLog生成反向SQL语句回滚一阶段的数据修改.**其中关键的 SQL 解析和拼接工作借助了 Druid Parser 中的代码，这部分本文并不涉及，感兴趣的小伙伴可以去翻看源码，并不是很复杂**。
+
+### **图解 AT 模式一阶段流程**
+
+一阶段分支事务的具体工作有:
+
+1. 跟进需要执行的SQL类型生成对应的`SqlRecognizer`
+2. 进而生成相应的`SqlExecutor`
+3. 然后进入核心逻辑查询数据的前后快照,拿到修改数据前后的快照之后,将两者整合生成UndoLog,并尝试将其和业务修改在同一个事务中提交
+
+整个流程图如下:
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQjDUA5PP5QibhiaOUqeg3ajZia6AGl0JE724o6XV3jGWXLC9SNcTYSv2VZw/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+**本地事务提交前必须想服务端注册分支,**分支注册信息中包含由表名和行主键组成的全局锁,如果分支注册过程中发现全局锁正在被其他全局事务锁定则抛出全局锁冲突异常,客户端需要循环等待,知道其他全局事务释放锁之后该本地事务才能提交.**Seata 以这样的机制保证全局事务间的写隔离。**
+
+### **图解二阶段 Commit 流程**
+
+一阶段全部提交成功后,TM会向TC请求提交这个全局事务,服务端根据`xid`查询该全局事务加锁并关闭这个全局事务,**目的时防止该事务后续还有分支继续注册上来**.同时将其状态从`begin`修改为`committing`
+
+紧接着,判断全局事务的分支类型是否均为`AT`类型,符合要求则服务端**异步提交**,因为`AT`模式下一阶段完成数据已经落地.服务端仅仅修改全局事务状态为 `AsyncCommitting`，然后会有一个定时线程池存储介质中查询出待提交的全局事务日志进行提交，如果全局事务提交成功则会释放全局锁并删除事务日志。整个流程如下图所示：
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQj2rRUDYiaKRLbEyN8xz8W41ssic6C6SKauXcXFacdQ1xZrLnmx5aMiaCJA/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+对客户端来说，先是接收到服务端发送的 `branch commit` 请求，然后客户端会根据 `resourceId` 找到相应的 `ResourceManager`，接着将分支提交请求封装成 `Phase2Context` 插入内存队列 `ASYNC_COMMIT_BUFFER`，客户端会有一个定时线程池去查询该队列进行 `UndoLog` 的异步删除。
+
+一旦客户端提交失败或者RPC超时,则服务端会将该全局事务状态置为 `CommitRetrying`，之后由另一个定时线程池去一直重试.
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQjfupuxxicuSNXVpvYRibAsVwp4NAJ0gZTTpTSYRrkzFic3aibkLcnXnp1iaw/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+### **图解二阶段 Rollback 流程**
+
+TM一阶段异常会向TC请求回滚全局事务,服务端会根据xid查询出这个全局事务,加锁关闭事务使得后续不会再有分支注册上来,并同时更改状态`Begin` 为 `Rollbacking`，接着进行**同步回滚**以保证数据一致性。除了同步回滚这个点外，其他流程同提交时相似，如果同步回滚成功则释放全局锁并删除事务日志，如果失败则会进行异步重试。整个流程如下图所示:
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQjfKWibbOScqm9Dk7IS6WiczYbVUfLicXMj9vv4bRib1fcF4f7GEkia1E6dlA/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+客户端接收到服务端的 `branch rollback` 请求，先根据 `resourceId` 拿到对应的数据源代理，然后根据 `xid` 和 `branchId` 查询出 `UndoLog` 记录，反序列化其中的 `rollback` 字段拿到数据的前后快照，我们称该全局事务为 `A`。
+
+根据具体 `SQL` 类型生成对应的 `UndoExecutor`，校验一下数据 `UndoLog` 中的前后快照是否一致或者前置快照和当前数据（这里需要 `SELECT` 一次）是否一致，如果一致说明**不需要做回滚操作**，如果不一致则生成反向 `SQL` 进行补偿，在提交本地事务前会检测获取数据库本地锁是否成功，如果失败则说明存在其他全局事务（假设称之为 `B`）的一阶段正在修改相同的行，但是由于这些行的主键在服务端已经被当前正在执行二阶段回滚的全局事务 `A` 锁定，因此事务 B 的一阶段在本地提交前尝试获取全局锁一定是失败的，等到获取全局锁超时后全局事务 `B` 会释放本地锁，这样全局事务 `A` 就可以继续进行本地事务的提交，成功之后删除本地 `UndoLog` 记录。整个流程如下图所示：
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/RpldnLMp99hLzDENlozs9ib657nEscLQjR1ic45sZrYyLJL1Rk17Cibacq2gibx8dGHic351JicTnsXibCmJo6G7Wia6dg/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+
+
+
+
 ## Seata AT 模式客户端部分
 
 `Seata` 中主要针对 `java.sql` 包下的 `DataSource`、`Connection`、`Statement`、`PreparedStatement` 四个接口进行了再包装，包装类分别为 `DataSourceProxy`、`ConnectionProxy`、`StatementProxy`、`PreparedStatementProxy`，很好一一对印，其功能是在 `SQL` 语句执行前后、事务 `commit` 或者 `rollbakc` 前后进行一些与 `Seata` 分布式事务相关的操作，例如**分支注册、状态回报、全局锁查询、快照存储、反向 SQL 生成**等.
@@ -89,7 +143,7 @@ public Object execute(Object... args) throws Throwable {
         String xid = RootContext.getXID();
         statementProxy.getConnectionProxy().bind(xid);
     }
-	//设置全局锁标志位
+	//设置全局锁标志位,获取全局锁,全局锁在第二阶段完成后被释放
     if (RootContext.requireGlobalLock()) {
         statementProxy.getConnectionProxy().setGlobalLockRequire(true);
     } else {
@@ -124,7 +178,7 @@ protected T executeAutoCommitFalse(Object[] args) throws Exception {
     T result = statementCallback.execute(statementProxy.getTargetStatement(), args);
     //获取afterImage,同beforeImage
     TableRecords afterImage = afterImage(beforeImage);
-    //保存到undoLog
+    //保存到undoLog,此时会根据sql类型和数据获取局部锁
     prepareUndoLog(beforeImage, afterImage);
     return result;
 }

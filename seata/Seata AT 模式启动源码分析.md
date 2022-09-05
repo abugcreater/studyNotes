@@ -87,7 +87,11 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator implement
 }
 ```
 
+下图标识了初始化bean时对注解了GlobalTransactional或GlobalLock的bean对象进行包装
+
 ![图片](https://mmbiz.qpic.cn/mmbiz_png/4MfwdbrwE6dOHthqqIf9UEqgYZpOerdFb0iaPTYswVSeNz8XEV9ib8RicCqlQrbKFzfZKdHt3Su0ZPKOaLSEQS0bw/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+
 
 InitializingBean 的 afterPropertiesSet() 方法调用了 initClient() 方法：
 
@@ -499,3 +503,7 @@ TM client 的注册大体类似，把本次注册的信息放入对应的缓存�
 
 
 参考:[Seata AT 模式启动源码分析](https://mp.weixin.qq.com/s?__biz=MzU3MjQ1ODcwNQ==&mid=2247484327&idx=1&sn=0fffba772a6124a92feb85913eb0f8a4&chksm=fcd1d019cba6590f42b731f60206f8b7f0ad244be1c33e7bc7cced821ec595207b0e2c1bf2fa&scene=178&cur_album_id=1337925915665399808#rd)
+
+[Seata AT模式源码大剖析](https://juejin.cn/post/7083769837126123527#heading-9)
+
+[源码系列(八)-Seata1.5.0源码解析](https://blog.csdn.net/zwq56693/article/details/123643074)

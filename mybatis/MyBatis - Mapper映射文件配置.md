@@ -544,8 +544,6 @@ sqlElement方法负责解析sql元素。id属性用于区分不同的sql元素�
 
 buildStatementFromContext方法负责解析statement元素。id属性用于区分不同的statement元素，在同一个配置文件中可以配置多个statement元素。通过调用XMLStatementBuilder的parseStatementNode方法完成解析
 
-著作权归https://pdai.tech所有。 链接：https://pdai.tech/md/framework/orm-mybatis/mybatis-y-config-mapper.html
-
 ### 8.1 动态解析子元素
 
 statement节点可以配置各种子元素，比如前面提到的include子元素和selectKey子元素等。动态解析子元素通过parseDynamicTags方法完成。该方法根据子元素的类型递归的解析成一个个的SqlNode，这些SqlNode对象提供了apply方法，供后续调用时生成sql语句所需。需要注意的是SelectKey没有对应的SqlNode对象，因为它的功能是用来生成KeyGenerator对象的（具体来说是SelectKeyGenerator对象）。另外，SelectKey节点生成的KeyGenerator优先级高于statement节点的useGeneratedKeys属性生成的KeyGenerator对象，也就是说配置了SelectKey子节点就不需要再配置useGeneratedKeys属性了

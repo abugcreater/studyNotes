@@ -1,6 +1,10 @@
+
+
 # Springboot 启动流程 - run方法解析
 
 springboot启动是当初始化完成`SpringApplication`后调用`run`方法进行容器的初始化和启动操作.
+
+## Run方法解析
 
 ```java
 public ConfigurableApplicationContext run(String... args) {
@@ -18,19 +22,19 @@ public ConfigurableApplicationContext run(String... args) {
     //实际调用为EventPublishingRunListener#starting,推送ApplicationStartingEvent事件,触发的监听器分别为LoggingApplicationListener/BackgroundPreinitializer/DelegatingApplicationListener/LiquibaseServiceLocatorApplicationListener, 实际只执行了LoggingApplicationListener的logsystem 初始化
    listeners.starting();
    try {
-       //初始化applicationArguments类
+       //初始化applicationArguments类,初始化过程中会触发参数解析,new SimpleCommandLineArgsParser().parse(args)
       ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
        //创建和配置环境
       ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
-       //配置忽略Bean的信息
+       //配置忽略Bean的信息,默认为spring.beaninfo.ignore包
       configureIgnoreBeanInfo(environment);
        //打印banner信息
       Banner printedBanner = printBanner(environment);
-       //创建application上下文
+       //根据环境创建application上下文,此处为AnnotationConfigServletWebServerApplicationContext类
       context = createApplicationContext();
        //实例化配置的SpringBootExceptionReporter类集合
       exceptionReporters = 
-          //该方法在之前解析了
+          //获取springfactories中配置的SpringBootExceptionReporter信息并初始化
           getSpringFactoriesInstances(SpringBootExceptionReporter.class,
             new Class[] { ConfigurableApplicationContext.class }, context);
       	//准备上下文
@@ -69,21 +73,21 @@ public ConfigurableApplicationContext run(String... args) {
 
 
 
-
+### 1.2  初始化Environment 
 
 ```java
 private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
       ApplicationArguments applicationArguments) {
    // Create and configure the environment
-   //根据webApplicationType类型初始化不同的 ConfigurableEnvironment 类型
+   //根据webApplicationType类型初始化不同的 ConfigurableEnvironment 类型,此处为StandardServletEnvironment
    ConfigurableEnvironment environment = getOrCreateEnvironment();
-    //配置Environment的属性,active文件,ConversionService
+    //配置Environment的属性,active文件,ConversionService,配置各种解析器
    configureEnvironment(environment, applicationArguments.getSourceArgs());
     //将PropertySources放到最前面,类型为SpringConfigurationPropertySources,包含source中的所有配置,确保ConfigurationPropertySource支持各个环境
    ConfigurationPropertySources.attach(environment);
    //出发ApplicationEnvironmentPreparedEvent事件 
    listeners.environmentPrepared(environment);
-   //初始化binder类, 
+   //初始化binder类, 将application与environment绑定
    bindToSpringApplication(environment);
    if (!this.isCustomEnvironment) {
        //根据webApplicationType类型将environment转化为不同的StandardEnvironment类
@@ -96,7 +100,9 @@ private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners
 }
 ```
 
+#### 1.2.1 配置Environment
 
+填充Environment相关属性,如类型转换器等,以及默认的属性和配置文件
 
 ```java
 protected void configureEnvironment(ConfigurableEnvironment environment, String[] args) {
@@ -112,6 +118,8 @@ protected void configureEnvironment(ConfigurableEnvironment environment, String[
    configureProfiles(environment, args);
 }
 ```
+#### 1.2.2  设置active profile属性
+
 
 ```java
 //2. 看注释的意思，大概就是找到配置中的 active profile的值
@@ -132,7 +140,7 @@ protected void configureProfiles(ConfigurableEnvironment environment, String[] a
 }
 ```
 
-
+#### 1.2.3 绑定容器与propertySources
 
 ```java
 protected void bindToSpringApplication(ConfigurableEnvironment environment) {
@@ -147,7 +155,7 @@ protected void bindToSpringApplication(ConfigurableEnvironment environment) {
    }
 }
 ```
-
+### 1.3 跳过对BeanInfo类的搜索
 
 
 ```java
@@ -161,6 +169,7 @@ private void configureIgnoreBeanInfo(ConfigurableEnvironment environment) {
    }
 }
 ```
+### 1.4 创建上下文
 
 ```java
 protected ConfigurableApplicationContext createApplicationContext() {
@@ -188,15 +197,17 @@ protected ConfigurableApplicationContext createApplicationContext() {
 }
 ```
 
+### 1.5 设置容器上下文
+
 ```java
 //准备上下文
 private void prepareContext(ConfigurableApplicationContext context, ConfigurableEnvironment environment,
       SpringApplicationRunListeners listeners, ApplicationArguments applicationArguments, Banner printedBanner) {
     //设置上下文的环境
    context.setEnvironment(environment);
-    //对应用上下文进行post处理
+    //对应用上下文进行post处理,基本知识设置BeanFactory的ConversionService
    postProcessApplicationContext(context);
-    //应用Initializers
+    //应用Initializers,每个Initializer负责初始化一部分容器,设置BeanFactoryPostProcessor等
    applyInitializers(context);
     //发布 ApplicationContextInitializedEvent 事件,触发BackgroundPreinitializer,DelegatingApplicationListener监听器
    listeners.contextPrepared(context);
@@ -221,14 +232,16 @@ private void prepareContext(ConfigurableApplicationContext context, Configurable
    if (this.lazyInitialization) {
       context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor());
    }
-   // Load the sources
+   // Load the sources,一般是主类
    Set<Object> sources = getAllSources();
    Assert.notEmpty(sources, "Sources must not be empty");
     //注册resources 为bean 并count+1
    load(context, sources.toArray(new Object[0]));
+    //新增监听器 CloudFoundryVcapEnvironmentPostProcessor,并发布ApplicationPreparedEvent事件
    listeners.contextLoaded(context);
 }
 ```
+#### 1.5.1 添加容器后置处理 
 
 ```java
 protected void postProcessApplicationContext(ConfigurableApplicationContext context) {
@@ -280,6 +293,8 @@ private int load(Class<?> source) {
 }
 ```
 
+### 1.6 初始化容器
+
 ```java
 //刷新上下文
 private void refreshContext(ConfigurableApplicationContext context) {
@@ -299,6 +314,41 @@ private void refreshContext(ConfigurableApplicationContext context) {
 }
 ```
 
+### 1.7 触发ApplicationStartedEvent事件
+
+EventPublishingRunListener#started
+
+```java
+public void started(ConfigurableApplicationContext context) {
+    //触发ApplicationStartedEvent事件,初始化时对应的listener没有其他操作
+   context.publishEvent(new ApplicationStartedEvent(this.application, this.args, context));
+   AvailabilityChangeEvent.publish(context, LivenessState.CORRECT);
+}
+```
+
+### 1.8 执行Runner调用
+
+​     调用ApplicationRunner和CommandLineRunner的run方法，实现spring容器启动后需要做的一些东西
+
+```java
+private void callRunners(ApplicationContext context, ApplicationArguments args) {
+   List<Object> runners = new ArrayList<>();
+   runners.addAll(context.getBeansOfType(ApplicationRunner.class).values());
+   runners.addAll(context.getBeansOfType(CommandLineRunner.class).values());
+   AnnotationAwareOrderComparator.sort(runners);
+   for (Object runner : new LinkedHashSet<>(runners)) {
+      if (runner instanceof ApplicationRunner) {
+         callRunner((ApplicationRunner) runner, args);
+      }
+      if (runner instanceof CommandLineRunner) {
+         callRunner((CommandLineRunner) runner, args);
+      }
+   }
+}
+```
+
+ 
+
 
 
 参考:
@@ -310,3 +360,9 @@ private void refreshContext(ConfigurableApplicationContext context) {
 [spring内置ApplicationListener](https://blog.csdn.net/andy_zhang2007/article/details/84105284)
 
 [prepareEnvironment()环境配置 方法解析](https://juejin.cn/post/6844904087574544398)
+
+[Spring Boot启动源码分析【一万字】](https://juejin.cn/post/7114303555724869668)
+
+[启动流程图](https://www.processon.com/view/60605358f346fb6d9ef1bd9c?fromnew=1)
+
+[SpringBoot 启动原理](https://mp.weixin.qq.com/s/KgMpU_CdG87PUMgVF7_f6g)
