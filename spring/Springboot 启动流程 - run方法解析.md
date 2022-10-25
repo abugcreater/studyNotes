@@ -11,7 +11,7 @@ public ConfigurableApplicationContext run(String... args) {
     //StopWatch 性能监控,监控启动时长
    StopWatch stopWatch = new StopWatch();
    stopWatch.start();
-   //spring配置上下文 
+   //spring配置上下文 !
    ConfigurableApplicationContext context = null;
    //用于支持自定义上报SpringApplication启动错误的回调接口
    Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
