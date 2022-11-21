@@ -8,10 +8,6 @@
 
 ## 图解Lucene
 
-
-
-著作权归https://pdai.tech所有。 链接：https://pdai.tech/md/db/nosql-es/elasticsearch-y-th-1.html
-
 ### Segment
 
 - **Mini索引——segment**
