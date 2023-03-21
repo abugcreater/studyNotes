@@ -11,8 +11,6 @@
 
 　　3、　关闭防火墙和selinux　　
 
-
-
 ```
 systemctl stop firewalld
 systemctl   disable firewalld
@@ -21,16 +19,18 @@ setenforce 0
 ```
 
 　　4、关闭swap
-
 　　　　禁用交换分区。为了保证 kubelet 正常工作，你必须禁用交换分区。
 
-　　　　# swapoff -a
+```sh
+# swapoff -a
+# sed -i 's/.*swap.*/#&/' /etc/fstab
+```
 
-　　　　# sed -i 's/.*swap.*/#&/' /etc/fstab
+
 
 　　5、配置repo 安装 containerd、kubelet、kubeadm、kubectl
 
-```
+```sh
 ###### 配置docker-ce源安装 containerd
 Step 1: 安装必要的一些系统工具
     yum install -y yum-utils device-mapper-persistent-data lvm2
@@ -60,29 +60,31 @@ EOF
 
 　　　　a、移除可能安装过的 Docker 包
 
-　　　　　　# yum remove docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+```
+yum remove docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine　 
+```
 
 　　　　b、安装 yum-utils
 
-　　　　　　# yum install -y yum-utils
+`yum install -y yum-utils`
 
 　　　　c、安装 containerd
 
-　　　　　　> # yum install containerd.io -y
+　　　　　　` # yum install containerd.io -y`
 
 　　　　d、配置 containerd
 
 　　　　　　I、设置开机自启和
 
-　　　　　　　　# systemctl enable containerd
+​							`# systemctl enable containerd`
 
-　　　　　　　　# systemctl start containerd
+　　　　　　　　`# systemctl start containerd`
 
 　　　　　　II、修改 containerd 使用 systemd　　　
 
 
 
-```
+```sh
 containerd  config default > /etc/containerd/config.toml
 sed -i 's#k8s.gcr.io#registry.aliyuncs.com/google_containers#g' /etc/containerd/config.toml
 sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
@@ -96,8 +98,6 @@ sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.t
 　　　　　　
 
 III、重启 containerd
-
-
 
 ```
 # systemctl daemon-reload
@@ -121,22 +121,24 @@ $ tar Cxzvf /opt/cni/bin cni-plugins-linux-amd64-v1.1.1.tgz
 2、部署 kubernetes组件 kubelet、kubeadm、kubectl　　
 
 　　　　a、安装并配置自启动
-
+```sh
 　　　　　　# yum install -y --nogpgcheck kubelet kubeadm kubectl
 
 　　　　　　# systemctl enable kubelet
+```
 
- 
 
 　　　　b、配置 kubernetes
 
 　　　　　　I、确认iptables 参数 为一：
-　　　　　　　　# cat /proc/sys/net/bridge/bridge-nf-call-ip6tables
-　　　　　　　　# cat /proc/sys/net/bridge/bridge-nf-call-iptables
+　　　　　　
+
+````sh
+#　cat /proc/sys/net/bridge/bridge-nf-call-ip6tables
+# cat /proc/sys/net/bridge/bridge-nf-call-iptables
+````
 
 　　　　　　II、通用配置项
-
-
 
 ```
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
@@ -144,10 +146,11 @@ overlay
 br_netfilter
 EOF
 ```
+Linux modprobe命令用于自动处理可载入模块
 
-　　　　　　　　# modprobe overlay
+　　　　　　　　`# modprobe overlay`
 
-　　　　　　　　# modprobe br_netfilter
+　　　　　　　`　# modprobe br_netfilter`
 
 
 
@@ -159,23 +162,29 @@ net.ipv4.ip_forward                 = 1
 EOF
 ```
 
-　　　　　　　　# sysctl --system    #生效以上配置
+　　　　　　　`　# sysctl --system`    #生效以上配置
 
  
 
 　　　　c、安装和设置 `crictl`
 
+```sh
 　　　　　　# VERSION="v1.23.0"
 
 　　　　　　# curl -L https://github.com/kubernetes-sigs/cri-tools/releases/download/$VERSION/crictl-${VERSION}-linux-amd64.tar.gz --output crictl-${VERSION}-linux-amd64.tar.gz
 
 　　　　　　#crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock
+```
+
+
+
+
 
 ## 3.**初始化集群**
 
 1、初始化master （只在master节点执行）
 
-　　　　# kubeadm init --image-repository=registry.aliyuncs.com/google_containers --pod-network-cidr=192.168.101.0/24 --service-cidr=192.168.102.0/24 --ignore-preflight-errors=all
+<font># kubeadm init --image-repository=registry.aliyuncs.com/google_containers --pod-network-cidr=192.168.101.0/24 --service-cidr=192.168.102.0/24 --ignore-preflight-errors=all</font>
 
 
 
@@ -203,8 +212,6 @@ kubeadm join 192.168.100.50:6443 --token iudv2k.654tkstlx3if0ox0 --discovery-tok
 
 　　2、按照成功提示 执行相应操作（只在master节点执行）：
 
-
-
 ```
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -215,7 +222,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 　　3、node节点加入集群（只在node节点执行在master 初始化完成时的提示命令）：
 
-　　　　# kubeadm join 192.168.100.50:6443 --token iudv2k.654tkstlx3if0ox0 --discovery-token-ca-cert-hash sha256:e2c640adbc1cc16c3819360ead74e78236de9c1a1190fcc747019924d1d17288 
+<font># kubeadm join 192.168.100.50:6443 --token iudv2k.654tkstlx3if0ox0 --discovery-token-ca-cert-hash sha256:e2c640adbc1cc16c3819360ead74e78236de9c1a1190fcc747019924d1d17288 </font>
 
  
 
@@ -235,11 +242,24 @@ node2     NotReady   <none>          2s    v1.25.2
 
 
 
+**注意:**如果没有保存初始化时的token和cert信息,那么可以通过以下命令获取
+
+```sh
+[root@master manifests]# kubeadm token create
+m16qlx.cw5oh9h6cfy2hed9
+
+[root@master kubernetes]# openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
+>    openssl dgst -sha256 -hex | sed 's/^.* //'
+024aea44f0c0ea36b3c3a8a75840430968da78280ca4d977e0caac3e8f031ff5
+```
+
+
+
 ## 4. **配置网络插件 calico**
 
 　1、安装插件：
 
-　　　　# kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+<font># kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml</font>
 
 　　　　操作完成后稍等一会儿就会自动处于Ready状态。
 
@@ -301,6 +321,67 @@ ifconfig cni0
 
 
 
+## 关于pod部署时状态为pending的问题
+
+首先可以使用指令
+
+> kubectl get pods --all-namespaces
+
+获取到所有pod的状态信息,具体如下
+
+```sh
+[root@master dashboard]# kubectl get pods --all-namespaces
+NAMESPACE              NAME                                         READY   STATUS    RESTARTS   AGE
+kube-system            calico-kube-controllers-f79f7749d-vdmwn      1/1     Running   0          103d
+kube-system            calico-node-pt9l4                            1/1     Running   0          103d
+kube-system            coredns-c676cc86f-85xp7                      1/1     Running   0          104d
+kube-system            coredns-c676cc86f-rcmxz                      0/1     Pending   0          104d
+kube-system            etcd-master                                  1/1     Running   1          104d
+kube-system            kube-apiserver-master                        1/1     Running   1          104d
+kube-system            kube-controller-manager-master               1/1     Running   1          104d
+kube-system            kube-proxy-tqvp7                             1/1     Running   0          104d
+kube-system            kube-scheduler-master                        1/1     Running   1          104d
+kubernetes-dashboard   dashboard-metrics-scraper-64bcc67c9c-8hwwv   0/1     Pending   0          29m
+kubernetes-dashboard   dashboard-metrics-scraper-748b4f5b9d-fvrd6   0/1     Pending   0          103d
+kubernetes-dashboard   kubernetes-dashboard-5c8bd6b59-tb7w8         0/1     Pending   0          29m
+kubernetes-dashboard   kubernetes-dashboard-5dff5767b9-4pdhw        0/1     Pending   0          103d
+
+```
+
+可以看到`kubernetes-dashboard`状态为pending状态.
+
+```sh
+kubectl describe pods dashboard-metrics-scraper-748b4f5b9d-fvrd6 -n kubernetes-dashboard
+```
+
+```
+Name:             dashboard-metrics-scraper-748b4f5b9d-fvrd6
+Namespace:        kubernetes-dashboard
+Priority:         0
+Service Account:  kubernetes-dashboard
+
+Events:
+  Type     Reason            Age                     From               Message
+  ----     ------            ----                    ----               -------
+  Warning  FailedScheduling  72s (x29677 over 103d)  default-scheduler  0/1 nodes are available: 1 node(s) had untolerated taint {node-role.kubernetes.io/control-plane: }. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+
+
+```
+
+获取失败信息:` 0/1 nodes are available: 1 node(s) had untolerated taint {node-role.kubernetes.io/control-plane: }`
+
+可以看到所属节点不能容忍污点.
+
+此时可以通过:` kubectl taint node master node-role.kubernetes.io/control-plane:NoSchedule-`命令解决问题
+
+> **TIP:**默认情况下 Master 节点是不允许运行用户 Pod 的。而 Kubernetes 做到这一点，依靠的是 Kubernetes 的 Taint/Toleration 机制。
+>
+> 它的原理非常简单：一旦某个节点被加上了一个 Taint，即被“打上了污点”，那么所有 Pod 就都不能在这个节点上运行，因为 Kubernetes 的 Pod 都有“洁癖”。
+>
+> 除非，有个别的 Pod 声明自己能“容忍”这个“污点”，即声明了 Toleration，它才可以在这个节点上运行。
+
+
+
 
 
 ## 踩坑
@@ -321,3 +402,7 @@ ifconfig cni0
 参考:[使用kubeadm 部署k8s--v1.25.2版本](https://www.cnblogs.com/weijie0717/p/16795337.html)
 
 [containerd安装](https://www.orchome.com/16586#item-3)
+
+[Linux modprobe命令](https://www.runoob.com/linux/linux-comm-modprobe.html)
+
+[使用 kubeadm 创建集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
