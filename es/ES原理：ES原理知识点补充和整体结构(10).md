@@ -2,7 +2,7 @@
 
 ## ElasticSearch整体结构
 
-![img](https://pdai.tech/_images/db/es/es-th-2-3.png)
+![img](https://pdai.tech/images/db/es/es-th-2-3.png)
 
 上图所示的系统整体结构为:
 
@@ -17,7 +17,7 @@
 
 Lucene的索引结构中文件组成
 
-![img](https://pdai.tech/_images/db/es/es-th-2-2.png)
+![img](https://pdai.tech/images/db/es/es-th-2-2.png)
 
 
 
@@ -25,13 +25,13 @@ Lucene的索引结构中文件组成
 
 文件的关系如下：
 
-![img](https://pdai.tech/_images/db/es/es-th-3-2.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-2.jpeg)
 
 
 
 ## Lucene处理流程
 
-![img](https://pdai.tech/_images/db/es/es-th-3-21.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-21.jpeg)
 
 **创建索引**过程:
 

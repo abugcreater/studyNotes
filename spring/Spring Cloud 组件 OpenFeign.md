@@ -279,10 +279,19 @@ public Object invoke(Object proxy, Method method, Object[] args) throws Throwabl
 ![image-20220117165051054](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20220117165051054.png)
 
 - 根据服务名从缓存中找 FeignLoadBalancer，如果缓存中没有，则创建一个 FeignLoadBalancer。
+
 - FeignLoadBalancer 会创建出一个 command，这个 command 会执行一个 sumbit 方法。
+
 - submit 方法里面就会用 Ribbon 的负载均衡算法选择一个 server
+
+  ```java
+  Observable<T> o = 
+          (server == null ? selectServer() : Observable.just(server))
+  ```
+
 - 然后将 IP 地址和之前剔除掉服务名称的 URL 进行拼接，生成最后的服务地址。
-- 最后 FeignLoadBalancer 执行 execute 方法发送请求。
+
+- 最后 FeignLoadBalancer 执行 execute 方法发送请求(具体执行类是`RibbonLoadBalancingHttpClient`)
 
 ## OpenFeign 处理响应的原理
 

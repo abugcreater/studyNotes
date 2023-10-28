@@ -4,7 +4,7 @@
 
 ### 单文档查询
 
-![img](https://pdai.tech/_images/db/es/es-th-2-21.png)
+![img](https://pdai.tech/images/db/es/es-th-2-21.png)
 
 1. 客户端向 Node 1 发送获取请求。
 2. 节点使用文档的 _id 来确定文档属于分片 0 。分片 0 的副本分片存在于所有的三个节点上。 在这种情况下，它将请求转发到 Node 2 。
@@ -14,7 +14,7 @@
 
 ### 多个文档
 
-![img](https://pdai.tech/_images/db/es/es-th-2-22.png)
+![img](https://pdai.tech/images/db/es/es-th-2-22.png)
 
 使用mget请求,获取多个文档步骤:
 
@@ -25,7 +25,7 @@
 
 一般的搜索流程是第一阶段先获取doc_id,第二阶段通过id获取完整文档,在ES中被称为`query_then_fetch`
 
-![img](https://pdai.tech/_images/db/es/es-th-2-32.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-2-32.jpeg)
 
 1. 查询阶段,广播请求到所有分片,然后创建一个优先级队列对返回请求的的全局排序,大小为from+size
 2. 每个分片返回各自优先级队列中所有文档ID和排序值给协调节点
@@ -33,7 +33,7 @@
 
 ### Elasticsearch的读
 
-![img](https://pdai.tech/_images/db/es/es-th-3-7.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-7.jpeg)
 
 存在以上三个数据节点,P1是主分片,其他为副本分片.
 
@@ -43,7 +43,7 @@
 
 Elasticsearch中的查询主要分为两类，**Get请求**：通过ID查询特定Doc；**Search请求**：通过Query查询匹配Doc。
 
-![img](https://pdai.tech/_images/db/es/es-th-3-9.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-9.jpeg)
 
 
 
@@ -55,7 +55,7 @@ Elasticsearch中的查询主要分为两类，**Get请求**：通过ID查询特�
 
 以最常见的的二阶段查询为例:
 
-![img](https://pdai.tech/_images/db/es/es-th-2-31.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-2-31.jpeg)
 
 #### Client Node
 

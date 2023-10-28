@@ -8,7 +8,7 @@
 
 新建单个文档所需要的步骤顺序：
 
-![img](https://pdai.tech/_images/db/es/es-th-2-4.png)
+![img](https://pdai.tech/images/db/es/es-th-2-4.png)
 
 1. 客户端想Node1发送,索引或者删除的请求
 2. 节点使用文档的_id确定文档属于分片0.请求会被转发到Node3,因为分片0的主分片在Node3上
@@ -20,7 +20,7 @@
 
 使用bulk修改多个文档步骤顺序:
 
-![img](https://pdai.tech/_images/db/es/es-th-2-23.png)
+![img](https://pdai.tech/images/db/es/es-th-2-23.png)
 
 1. 客户端想Node1发送bulk请求
 2. Node1为每个节点创建一个批量请求,然后将这些请求转发到对应的主分片的节点上
@@ -30,7 +30,7 @@
 
 ###  整体的索引流程
 
-![img](https://pdai.tech/_images/db/es/es-th-2-5.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-2-5.jpeg)
 
 1. 协调节点(coordinating node)默认使用文档ID参与计算(也支持通过routing),以便路由到合适的节点
 2. 当分片所在节点接受到请求后,会将这些请求先写到memory buffer中,然后定时写入到文件系统缓存(filesystem cache),这个写入的过程就叫做refresh
@@ -45,7 +45,7 @@
 
 **write 过程**
 
-![img](https://pdai.tech/_images/db/es/es-th-2-6.png)
+![img](https://pdai.tech/images/db/es/es-th-2-6.png)
 
 有新的文档写入时,先会写入到memory buffer和translog(事务日志)中,每一次ES操作都会写入到translog.
 
@@ -53,7 +53,7 @@
 
 - **refresh 过程**
 
-![img](https://pdai.tech/_images/db/es/es-th-2-7.png)
+![img](https://pdai.tech/images/db/es/es-th-2-7.png)
 
 1. memory buffer中的文档写入到新的segment中,segment存储在filesystem cache中,此时文档可以被检索到
 2. 清空memory buffer,此时translog中的文件没有被清空,需要等待到segment中的数据刷盘
@@ -66,7 +66,7 @@
 
 当translog越来越大,需要通过flush刷盘创建新的translog.flush也保证了文档不会丢失.
 
-![img](https://pdai.tech/_images/db/es/es-th-2-9.png)
+![img](https://pdai.tech/images/db/es/es-th-2-9.png)
 
 1. 所有的内存缓冲区的文档都被刷入到新的段中
 2. 缓冲区被清空
@@ -78,7 +78,7 @@
 
 每次refresh都会创建新段,而每次搜索都必须轮流检索所有段,太多的段会导致性能消耗大,查询速度变慢.ES通过后台将这些小段合并成大段来解决这个问题.
 
-![img](https://pdai.tech/_images/db/es/es-th-2-10.png)
+![img](https://pdai.tech/images/db/es/es-th-2-10.png)
 
 合并进程会选择大小相似的段进行合并,合并结束后老的段会被删除.
 
@@ -146,7 +146,7 @@
 
 完整的更新请求如图所示.因为Lucene不支持部分字段更新,所以更新由ES完成
 
-![img](https://pdai.tech/_images/db/es/es-th-3-5.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-5.jpeg)
 
 更新流程:
 
@@ -157,7 +157,7 @@
 5. 在Index Doc阶段，首先将Version + 1得到V3，再将Doc加入到Lucene中去，Lucene中会先删同id下的已存在doc id，然后再增加新Doc。写入Lucene成功后，将当前V3更新到versionMap中。
 6. 释放锁，部分更新的流程就结束了
 
-![img](https://pdai.tech/_images/db/es/es-th-3-6.jpeg)
+![img](https://pdai.tech/images/db/es/es-th-3-6.jpeg)
 
 
 

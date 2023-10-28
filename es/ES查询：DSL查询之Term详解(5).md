@@ -4,7 +4,7 @@
 
 查询分为基于词项的查询和基于文本的查询:
 
-![img](https://pdai.tech/_images/db/es/es-dsl-full-text-3.png)
+![img](https://pdai.tech/images/db/es/es-dsl-full-text-3.png)
 
 term是基于词项的查询.
 

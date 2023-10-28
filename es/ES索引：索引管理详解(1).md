@@ -229,7 +229,7 @@ PUT /test-index-users/_settings
 
   一旦索引被关闭,那么就**不能对该索引进行读写操作**,该索引只能显示元数据信息
 
-  ![img](https://pdai.tech/_images/db/es/es-index-manage-7.png)
+  ![img](https://pdai.tech/images/db/es/es-index-manage-7.png)
 
 当我们插入数据时会显示`index_closed_exception`异常
 
@@ -289,7 +289,7 @@ GET /bank/_settings
 
 在Kibana如下路径，我们可以查看和管理索引
 
-![img](https://pdai.tech/_images/db/es/es-index-manage-6.png)
+![img](https://pdai.tech/images/db/es/es-index-manage-6.png)
 
 
 

@@ -6,7 +6,7 @@
 
 参考下图,了解当前学习内容.
 
-![img](https://pdai.tech/_images/db/es/es-dsl-full-text-3.png)
+![img](https://pdai.tech/images/db/es/es-dsl-full-text-3.png)
 
 - 第二点： **分类别**，从上层理解，而不是本身
 

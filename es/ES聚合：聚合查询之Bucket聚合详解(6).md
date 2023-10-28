@@ -14,7 +14,7 @@ ES包含**桶聚合（Bucket Aggregation)**,**指标聚合（Metric Aggregation)
 
 桶聚合的种类有十几种,我们需要站在设计者的角度思考,将其按设计分类.大致可以分为三类.
 
-![img](https://pdai.tech/_images/db/es/es-agg-bucket-1.png)
+![img](https://pdai.tech/images/db/es/es-agg-bucket-1.png)
 
 ## 按知识点学习聚合
 

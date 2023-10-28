@@ -18,7 +18,7 @@
 
 当一个request过来的时候，需要对这个request做一系列的加工，使用责任链模式可以使每个加工组件化，减少耦合。也可以使用在当一个request过来的时候，需要找到合适的加工方式。当一个加工方式不适合这个request的时候，传递到下一个加工方法，该加工方式再尝试对request加工。
 
-![img](https://pdai.tech/_images/tomcat/tomcat-x-pipline-5.jpg)
+![img](https://pdai.tech/images/tomcat/tomcat-x-pipline-5.jpg)
 
 
 
